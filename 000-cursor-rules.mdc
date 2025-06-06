@@ -1,0 +1,96 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Cursor Rules Guidelines
+
+## **File Location Management**
+
+**CRITICAL**: Always verify file locations before creating or updating rules.
+
+### **Directory Structure:**
+- **`.cursor/rules/*.mdc`** - Cursor-specific rules that affect editor behavior
+
+### **Before Creating Any Rule File:**
+1. **Search for existing files first**: Use your file search tool to find existing `.mdc` files in `.cursor/rules/`
+2. **Update, don't duplicate**: If file exists, update it instead of creating a new one
+
+### ✅ **Correct Process:**
+```
+1. file_search("rule-name.mdc")
+2. If found: read_file() and edit_file() the existing file
+3. If not found: create in .cursor/rules/rule-name.mdc
+```
+
+## **Required Rule Structure**
+
+```markdown
+---
+description: Clear, one-line description of what the rule enforces
+globs: path/to/files/*.ext, other/path/**/*
+alwaysApply: boolean
+---
+
+- **Main Points in Bold**
+  - Sub-points with details
+  - Examples and explanations
+```
+
+## **File References**
+
+- Use `[filename](mdc:path/to/file)` ([filename](mdc:filename)) to reference files
+- Example: `[prisma.mdc](mdc:.cursor/rules/prisma.mdc)` for rule references
+- Example: `@app.rb` for code references
+
+## **Code Examples**
+
+- Use language-specific code blocks
+```typescript
+// ✅ DO: Show good examples
+const goodExample = true;
+
+// ❌ DON'T: Show anti-patterns
+const badExample = false;
+```
+
+## **Rule Content Guidelines**
+
+- Keep the content short and to the point, it is not documentation, but a guide for an AI agent
+- Start with high-level overview of why the rule exist
+- Include specific, actionable requirements
+- Show examples of correct implementation
+- Reference existing code when possible
+- Keep rules DRY by referencing other rules
+
+## **Rule Maintenance**
+
+- **Update existing rules** when new patterns emerge
+- Add examples from actual codebase
+- Remove outdated patterns
+- Cross-reference related rules
+- **Never create duplicates** - always check for existing files first
+
+## **Update vs Create Decision Tree**
+
+```
+Does rule file already exist?
+├── YES: Use edit_file() to update existing rule
+│   ├── Add new sections
+│   ├── Update examples
+│   └── Enhance existing content
+└── NO: Create new file in .cursor/rules/
+    ├── Use proper YAML frontmatter
+    ├── Follow required structure
+    └── Reference related rules
+```
+
+## **Best Practices**
+
+- **Always search first**: Use file_search before creating any rule file
+- Use bullet points for clarity
+- Keep descriptions concise
+- Include both DO and DON'T examples
+- Reference actual code over theoretical examples
+- Use consistent formatting across rules
+- **Verify file locations**: Ensure rules go in `.cursor/rules/`.

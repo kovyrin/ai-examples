@@ -1,0 +1,54 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Technical Guidelines
+
+## Coding Standards/Rules
+
+* We version-control all the changes.
+* NEVER commit anything yourself, always ask the user to perform a commit.
+
+### Ruby
+- Add `# frozen_string_literal: true` at the top of all Ruby source files, but just pure Ruby, not templates, etc
+- Always add an empty line at the end of Ruby files
+- Use string enum values in Rails models (not integers)
+
+### Database
+- Use local SQLite database for development and testing
+- No foreign keys in the database
+- Use Solid Queue for background job management
+
+- **CRITICAL**: When making ANY database changes (migrations, model changes, etc), ALWAYS update BOTH data model files:
+  - Update [docs/data_model.md](mdc:docs/data_model.md) based on the latest [db/schema.rb](mdc:db/schema.rb)
+  - Update [005-data-model.mdc](mdc:.cursor/rules/005-data-model.mdc) rule with any models/tables added, removed, or significantly changed
+- These files must stay synchronized - if you update the schema, update both documentation files
+- Add timestamps to BOTH files when making updates (e.g., "Last update: YYYY-MM-DD")
+
+### Rails Configuration
+- Store secrets in `Rails.application.credentials`
+- Use [config.rb](mdc:lib/config.rb) for all application configuration constants
+
+### Ruby, meta-programming, etc
+- Do not monkey patch Rails or Ruby standard library classes
+
+## Frontend Development
+
+### UI/UX
+- Use Tailwind CSS for styling all components
+- Use Hotwire (Turbo and Stimulus) for dynamic UI interactions
+- Use simple ERB-based templates for views
+- Reuse shared pieces of ERB code as partials
+- Do not put frozen_string_literal comments in ERB files, only in pure Ruby files.
+
+## External Integrations
+
+### API Services
+- OpenAI API (or alternatives) for LLM assistance (see [llm-actions.mdc](mdc:.cursor/rules/llm-actions.mdc) for implementation details)
+- Google TTS API for audio generation
+- Anki Connect for interfacing with Anki (see [anki-connect.mdc](mdc:docs/rules/anki-connect.mdc) for more details)
+
+## Testing Strategy
+
+For detailed testing guidelines, see [004-testing-guidelines.mdc](mdc:.cursor/rules/004-testing-guidelines.mdc).

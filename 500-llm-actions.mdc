@@ -1,0 +1,256 @@
+---
+description: This rule is useful for using LLMs or creating any LLM-related actions within the application when we need the app to perform some actions through an LLM call.
+globs:
+alwaysApply: false
+---
+# LLM Actions Implementation Guide
+
+This guide outlines how to implement LLM actions in the Language SRS Sidekick application.
+
+## Architecture Overview
+
+The LLM integration is built around a modular architecture with these key components:
+
+1. `LlmService` - Main entry point and facade for all LLM operations (singleton pattern)
+2. `Llm::BaseAction` - Base class that defines the common interface for all LLM actions
+3. `Llm::BaseResponse` - Base class for response objects with validation
+4. Action classes - Specific implementations that inherit from BaseAction
+5. Response classes - Data structures with validation that inherit from BaseResponse
+
+## Creating a New LLM Action
+
+Follow these steps to implement a new LLM action:
+
+### 1. Create a Response Class
+
+Create a response class in `app/models/llm` that inherits from `Llm::BaseResponse`:
+
+```ruby
+# frozen_string_literal: true
+
+module Llm
+  class YourActionResponse < BaseResponse
+    attribute :field1, :string
+    attribute :field2, :string
+    attribute :field3, :string
+
+    validates :field1, presence: true
+    validates :field2, presence: true
+    validates :field3, presence: true
+
+    # Add any custom validations if needed
+    validate :custom_validation_method
+
+    private
+
+    def custom_validation_method
+      # Custom validation logic
+    end
+  end
+end
+```
+
+### 2. Create an Action Class
+
+Create an action class in `app/services/llm` that inherits from `Llm::BaseAction`:
+
+```ruby
+# frozen_string_literal: true
+
+module Llm
+  class YourAction < BaseAction
+    def execute(input)
+      Rails.logger.info("Processing action for: '#{input}'")
+      prompt_content = user_prompt(input)
+      result = perform_llm_request(prompt_content)
+      Rails.logger.info("Completed LLM action")
+      result
+    end
+
+    protected
+
+    def task_specific_prompt
+      <<~PROMPT
+        Your task is to process #{Config.target_language} content and provide structured information.
+        The information will be used for [describe purpose].
+      PROMPT
+    end
+
+    def response_schema
+      json_object(
+        field1: {
+          type: "string",
+          description: "Description of field1"
+        },
+        field2: {
+          type: "string",
+          description: "Description of field2"
+        },
+        field3: {
+          type: "string",
+          description: "Description of field3"
+        }
+      )
+    end
+
+    def response_examples
+      [
+        # Example 1
+        {
+          "field1": "example value 1",
+          "field2": "example value 2",
+          "field3": "example value 3"
+        },
+        # Example 2
+        {
+          "field1": "another value 1",
+          "field2": "another value 2",
+          "field3": "another value 3"
+        }
+      ]
+    end
+
+    def user_prompt(input)
+      <<~PROMPT
+        Process the following content in #{Config.target_language}: "#{input}"
+
+        Provide detailed information according to the specified schema.
+
+        Requirements:
+        1. Requirement 1
+        2. Requirement 2
+        3. Requirement 3
+      PROMPT
+    end
+
+    def validate_result(result)
+      response = YourActionResponse.from_hash(result)
+
+      unless response.valid?
+        error_message = "Invalid LLM response: #{response.errors.full_messages.join(', ')}"
+        Rails.logger.error(error_message)
+        raise LlmService::ResponseFormatError, error_message
+      end
+
+      response
+    end
+  end
+end
+```
+
+### 3. Add a Service Method
+
+Add a class method to `LlmService` that uses your new action:
+
+```ruby
+# In app/services/llm_service.rb
+def self.your_action_name(input, temperature: DEFAULT_TEMPERATURE)
+  validate_credentials!
+  action = Llm::YourAction.new(service: instance)
+  action.execute(input)
+end
+```
+
+### 4. Create a Testing Script (Optional)
+
+Create a script in the `bin` directory to test your new action:
+
+```ruby
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../config/environment"
+
+# Parse command line options
+debug_mode = ARGV.delete("--debug") || ARGV.delete("-d")
+
+# Setup logging
+log_level = debug_mode ? Logger::DEBUG : Logger::INFO
+Rails.logger = Logger.new(STDOUT)
+Rails.logger.level = log_level
+
+if ARGV.empty?
+  puts "Usage: bin/your-action-script [options] \"input\""
+  puts "Options:"
+  puts "  --debug, -d        Enable debug logging"
+  exit 1
+end
+
+input = ARGV[0]
+puts "Processing: #{input}"
+
+begin
+  result = LlmService.your_action_name(input)
+
+  puts "\nResults:"
+  puts "Field1: #{result.field1}"
+  puts "Field2: #{result.field2}"
+  puts "Field3: #{result.field3}"
+rescue => e
+  puts "Error: #{e.class.name} - #{e.message}"
+end
+```
+
+## Key Components
+
+### BaseAction
+
+The `BaseAction` class provides common functionality:
+
+- System prompt generation with task-specific content
+- JSON schema response format definition
+- Response example handling
+- Message building for LLM requests
+- Error handling and retries
+- Logging
+
+### BaseResponse
+
+The `BaseResponse` class provides:
+
+- ActiveModel validations
+- Attributes with type casting
+- Hash conversion methods
+
+### LlmService
+
+The service handles:
+
+- Singleton instance management
+- High-level API methods
+- OpenAI client configuration
+- Error handling and retries
+- Response parsing and validation
+
+## Best Practices
+
+1. **Response Schema**: Always define a detailed JSON schema with descriptions
+2. **Examples**: Provide multiple examples covering different use cases
+3. **Validations**: Implement comprehensive validation in response classes
+4. **Logging**: Include detailed logging at appropriate levels
+5. **Error Handling**: Use appropriate error classes and provide helpful messages
+6. **Documentation**: Document the purpose and usage of your action
+7. **Testing**: Write tests for your action using VCR recordings
+
+## Current Implementations
+
+The codebase has these action implementations you can reference:
+
+1. **WordEnrichmentAction**
+   - Processes single words
+   - Normalizes words (infinitives for verbs, singular forms for nouns)
+   - Extracts part of speech, gender, and example sentences
+   - Test with `bin/enrich-word`
+
+2. **PhraseProcessingAction**
+   - Processes phrases or expressions
+   - Provides translations and example usage
+   - Test with `bin/process-phrase`
+
+3. **SplitIntoWordsAction**
+   - Splits text into individual words removing punctuation
+   - Returns words in the same order as they appear in the text
+   - Preserves case for proper nouns, makes other words lowercase
+   - Test with `bin/split-text`
+
+Each action has a corresponding response class with appropriate validations.

@@ -1,0 +1,229 @@
+---
+description:
+globs: *_test.rb
+alwaysApply: false
+---
+# Testing Guidelines
+
+## General Guidelines
+
+- **Use Minitest for all test suites**
+  - Mocha is available for mocking/stubbing when needed
+  - Follow Minitest's assert-style syntax, not spec-style
+  - Run tests with `bin/rails test` (optionally specify file/directory)
+
+- **Test hygiene**
+  - Always run tests for code you have changed
+  - Always run tests you have added or modified
+  - Prioritize fixing tests over changing application code to make tests pass
+  - Do not test logging behavior
+  - Use `DEBUG_LOG=1` environment variable when fixing tests to enable Rails log output to console
+  - **NEVER run `rails console`** - it's an interactive command that will hang and block progress
+
+- **Test fixing approach**
+  - If a test is failing, first assume the test is wrong and try to fix it
+  - Do not change the code being tested unless absolutely necessary
+  - Ensure tests are deterministic and don't depend on external state
+
+## Test Structure
+
+- **Follow the app structure in test files**
+  - Create test files in the `test/` directory mirroring the app structure
+  - Example: `test/services/` for service tests
+
+- **Write self-documenting tests**
+  - Use descriptive test names explaining what's being tested and expected outcome
+  - Create comprehensive setup methods to prepare all necessary test data
+  - Use random values with test-specific suffixes for uniqueness requirements
+
+## System Tests
+
+- **JavaScript execution in system tests**
+  - Be aware that JavaScript may not execute reliably in headless Chrome during tests
+  - Consider using direct database operations + page refreshes instead of relying on JavaScript interactions
+  - If JavaScript testing is critical, ensure proper wait conditions and verify JS is loaded
+
+- **System test best practices**
+  - Use `assert_selector` with `wait:` parameter for elements that may load asynchronously
+  - Prefer testing desktop viewport only unless mobile is critical
+  - Use `within` blocks to scope assertions to specific page regions
+  - Always wait for navigation elements to load before asserting on them
+
+- **Handling dynamic content**
+  - When testing counters or badges that update via Turbo Streams, consider testing the initial state and final state separately
+  - Use page refreshes between state changes if JavaScript/Turbo isn't executing properly in tests
+
+## Separation of Concerns
+
+- **Never hardcode test-specific data in production code**
+  - Keep test data and expectations in test files
+
+- **Use consistent mock setup in tests**
+  - Match mock expectations to actual behavior
+  - Only mock calls that will actually be made
+
+## Testing Existing Records
+
+- **Handle existing database records properly**
+  - Either create test fixtures with known values or load and adapt to existing data
+  - Don't assume a clean database state in tests
+  - For example, when using `find_by` in tests, handle both cases when records exist and don't exist
+
+## Mocking Service Calls
+
+- **Only mock external services**
+  - Mock LLM, API calls, and other external dependencies
+  - Use real objects for internal services where possible
+  - Example: `LlmService.expects(:enrich_word).with("a").returns(@word_response_a)`
+
+- **Make mocks match reality**
+  - Ensure mock responses match the structure of real responses
+    - You can write a script or a curl command that calls a real service to check how a real response looks like.
+    - API docs may have examples of real responses as well.
+  - Test both success and error states
+  - Don't mock methods that won't be called in actual execution
+
+## Test Data Management
+
+- **Use random suffixes for test data**
+  - Prevents test data from conflicting with existing data
+  - Use `SecureRandom.hex` for unique identifiers
+  - Example: `@test_suffix = SecureRandom.hex(4)` and `@phrase_content = "a casa é bonita #{@test_suffix}"`
+
+- **Clean up created test data**
+  - Delete records created during testing in teardown
+  - Use transactions when possible to automatically roll back
+
+## Expect vs Assert
+
+- **Use `expects` for behavior verification**
+  - Use when checking that methods are called with specific arguments
+  - Example: `LlmService.expects(:split_into_words).with(@queue_item.content).returns(@split_response)`
+
+- **Use `assert` for state verification**
+  - Use when checking the state after an operation
+  - Example: `assert_equal "completed", @queue_item.enrichment_status`
+
+## Test Isolation
+
+- **Each test should work independently**
+  - Don't rely on state from other tests
+  - Reset all relevant state in setup/teardown
+  - Each test should create its own test data
+
+## Testing Specific Components
+
+### Service Objects
+- Create test fixture data in setup
+- Mock external services with `stub`
+- Test happy path scenarios
+- Test error conditions
+- Verify proper status transitions
+- Verify proper data persistence
+
+### API Integrations
+- Mock API responses with realistic test data
+- Test both success and failure paths
+- Test handling of validation errors in response data
+- Verify proper extraction and use of response attributes
+
+### Background Jobs
+- Test successful job execution with valid inputs
+- Test error handling and retry behavior
+- Test rate limiting and throttling mechanisms
+
+### LLM Integrations
+- Create mock LLM response objects with test data
+- Verify services correctly handle and transform LLM responses
+- Test error handling for LLM service failures
+
+## Preventing Integration Issues
+
+**The Problem**: Unit tests can pass individually but fail when components integrate because:
+- Service interfaces don't match how they're called
+- Mocking hides real interface mismatches
+- Class vs instance method confusion
+- Missing dependency injections
+
+### Integration Tests
+- **Test real service interactions** without mocking everything
+- Mock only the external HTTP/API layer, use real internal services
+- Place in `test/integration/` directory
+- Example: `test/integration/srs_sync_integration_test.rb`
+
+```ruby
+# Mock HTTP but use real service instances
+Net::HTTP.any_instance.stubs(:request).returns(mock_response)
+get srs_sync_preview_path # Uses real controller → real service → mocked HTTP
+```
+
+### Contract Tests
+- **Verify service interfaces match expectations**
+- Test that services have the methods consumers expect to call
+- Test method signatures (arity) match usage
+- Place in `test/contract/` directory
+- Example: `test/contract/anki_connect_service_contract_test.rb`
+
+```ruby
+# Verify methods exist and have correct signatures
+assert_respond_to service, :find_notes
+assert_equal 1, service.method(:find_notes).arity
+```
+
+### System Tests for Critical Paths
+- **Test that key user flows load without errors**
+- Don't try to test complex service integration at this level
+- Focus on navigation, basic page loads, and error detection
+- Example: `test/system/srs_sync_test.rb`
+
+```ruby
+# Test that page loads without application errors
+visit srs_sync_preview_path
+assert_no_text "Application Error"
+assert_text "SRS Sync Preview" # Basic structure loads
+```
+
+### Mixed Integration Testing Strategy
+
+**Layer 1: Unit Tests** (Fast, Isolated)
+- Mock all dependencies
+- Test individual component logic
+- Example: `SrsSyncServiceTest` with mocked `AnkiConnectService`
+
+**Layer 2: Integration Tests** (Medium, Real Services)
+- Mock only external APIs/HTTP
+- Use real internal service instances
+- Catch interface mismatches
+- Example: Controller → Service with mocked HTTP
+
+**Layer 3: Contract Tests** (Fast, Interface Verification)
+- Verify service interfaces match consumer expectations
+- Catch method existence and signature issues
+- No business logic testing
+
+**Layer 4: System Tests** (Slow, User Perspective)
+- Test critical user paths end-to-end
+- Focus on navigation and basic functionality
+- Catch major integration failures
+
+### When to Add Integration Tests
+
+**Always add integration tests when:**
+- Creating new service-to-service integrations
+- Using dependency injection patterns
+- Services call each other's methods directly
+- External API wrappers are involved
+
+**Warning Signs That Need Integration Tests:**
+- Services use class methods vs instance methods
+- Complex service initialization (like `Config.service_client()`)
+- Multiple services chained together
+- Services that wrap external APIs
+
+### Integration Test Best Practices
+
+- **Start with integration tests for new features**
+- Use real service instances, mock only external boundaries
+- Test both success and error paths
+- Keep setup simple - focus on interface verification
+- Don't duplicate unit test logic - focus on integration points

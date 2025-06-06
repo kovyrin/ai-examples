@@ -1,0 +1,179 @@
+---
+description: Detailed information on Anki-Connect usage in the app, read it before touching any Anki-related code
+globs:
+alwaysApply: false
+---
+# Anki-Connect Integration Guidelines
+
+## **API Request Format**
+- **Base URL**: `http://localhost:8765` (default)
+- **Method**: POST
+- **Content-Type**: `application/json`
+- **Request Structure**:
+  ```json
+  {
+    "action": "actionName",
+    "version": 6,
+    "params": { ... },
+    "key": "optional_api_key"
+  }
+  ```
+
+## **API Response Format**
+- **Success Response**: `{"result": data, "error": null}`
+- **Error Response**: `{"result": null, "error": "error message"}`
+- **Important**: JSON uses `null`, not Ruby's `nil`
+
+## **Common API Actions**
+
+### **Deck Management**
+- `deckNames` - Returns array of deck names (hierarchical with `::`)
+- `createDeck` - Creates a new deck
+
+### **Note Management**
+- `findNotes` - Returns array of note IDs for a query
+- `notesInfo` - Returns detailed note information
+- `addNotes` - Adds new notes to Anki
+- `updateNoteFields` - Updates existing note fields
+- `deleteNotes` - Deletes notes by IDs
+
+### **Model (Note Type) Management**
+- `modelNames` - Returns array of available note type names
+- `modelFieldNames` - Returns field names for a model
+- `createModel` - Creates a new note type
+- `updateModelTemplates` - Updates card templates
+
+## **Real Response Formats**
+
+### **notesInfo Response Structure**
+```json
+{
+  "result": [
+    {
+      "noteId": 1378099540741,
+      "profile": "User 1",
+      "tags": ["Vocabulary"],
+      "fields": {
+        "Portuguese": {"value": "fora", "order": 0},
+        "English": {"value": "outside", "order": 1}
+      },
+      "modelName": "Portuguese > English",
+      "mod": 1744584989,
+      "cards": [1378099556213, 1378099556214]
+    }
+  ],
+  "error": null
+}
+```
+
+### **deckNames Response**
+```json
+{
+  "result": [
+    "Default",
+    "Portuguese Mix::1. My Personal Portuguese Dictionary",
+    "Portuguese Mix::2. Combined Frequency Dictionary"
+  ],
+  "error": null
+}
+```
+
+## **Testing Guidelines**
+
+### **HTTP Stubbing with WebMock**
+```ruby
+def stub_anki_connect_request(action, params, response_body)
+  request_body = {
+    action: action,
+    version: 6,
+    params: params,
+    key: "test_api_key"  # Include key if authentication required
+  }
+
+  stub_request(:post, AnkiConnectService::ANKI_CONNECT_URL)
+    .with(
+      body: request_body.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    .to_return(
+      status: 200,
+      body: response_body.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+end
+```
+
+### **Use Real API Response Formats**
+- Always test with actual response formats from live Anki-Connect
+- Use `curl` to verify API response structures before creating stubs
+- Match field structures exactly, including `order` properties in note fields
+
+## **Error Handling**
+
+### **Connection Errors**
+- `Errno::ECONNREFUSED` - Anki-Connect not running
+- `SocketError` - Network issues
+- HTTP status codes other than 200
+
+### **API Errors**
+- `"valid api key must be provided"` - Authentication required
+- `"unsupported action"` - Invalid action name
+- `"deck was not found"` - Deck doesn't exist
+
+## **Implementation Best Practices**
+
+### **Service Class Structure**
+```ruby
+class AnkiConnectService
+  ANKI_CONNECT_URL = 'http://localhost:8765'.freeze
+  ANKI_CONNECT_VERSION = 6
+
+  class AnkiConnectError < StandardError; end
+  class ConnectionError < StandardError; end
+
+  def initialize(url: ANKI_CONNECT_URL, api_key: nil)
+    @url = url
+    @uri = URI(url)
+    @api_key = api_key
+  end
+
+  private
+
+  def request_anki(action, params = {})
+    request_body = {
+      action: action,
+      version: ANKI_CONNECT_VERSION,
+      params: params
+    }
+    request_body[:key] = @api_key if @api_key
+
+    # HTTP request implementation...
+  end
+end
+```
+
+### **Configuration Management**
+- Store API key in Rails credentials or environment variables
+- Allow URL configuration for different environments
+- Provide sensible defaults for development
+
+### **Tagging Strategy**
+- Use `srs-sidekick` tag for all notes created by the application
+- Add additional tags like `stable-phrase` for specific note types
+- Include tags in `addNotes` request: `"tags": ["srs-sidekick", "vocabulary"]`
+
+## **Field Mapping for Sync**
+
+### **Standard Field Mapping**
+- Map application note attributes to Anki note fields consistently
+- Handle empty/null values appropriately
+- Preserve field order information from `notesInfo` responses
+
+### **Timestamp Tracking**
+- Use `mod` field from `notesInfo` for last modification tracking
+- Store Anki note IDs locally for efficient sync operations
+- Track last sync timestamps to identify changes
+
+## **Documentation Reference**
+- Full API documentation: https://git.sr.ht/~foosoft/anki-connect
+- Test API calls with: `curl -X POST http://localhost:8765 -H "Content-Type: application/json" -d '{"action": "version", "version": 6}'`

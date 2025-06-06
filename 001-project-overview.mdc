@@ -1,0 +1,35 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Project Overview
+
+The Language SRS Sidekick is a Rails application for building and maintaining vocabulary-building and grammar-focused SRS (Anki) decks.
+
+## Core Concepts
+- **Queue Processing**: Words/phrases added to a queue from different **Vocabulary Sources**, then converted into **Vocabulary Notes** with LLM assistance.
+- **Vocabulary Notes**: SRS notes with attributes like content, translations, part-of-speech, examples, and audio
+- **Vocabulary Sources**: Manual input and LingQ API integration
+- **SRS Syncing**: Synchronization of **Vocabulary Notes** with Anki
+
+## Technology Stack
+- Ruby on Rails with SQLite
+- Tailwind CSS and Hotwire
+- ActiveStorage for audio files
+- OpenAI API for LLM assistance, note generation, etc
+- Anki Connect for Anki integration, see [500-anki-connect.mdc](mdc:.cursor/rules/500-anki-connect.mdc) for details
+
+### Audio Generation
+- Content (word/sentence) and example sentence audio generated via Google TTS API
+- Audio files stored using ActiveStorage
+
+### LLM Integration
+- OpenAI API used for content enrichment
+- Custom wrapper for the API client to keep prompts organized and easy to iterate on
+- See [500-llm-actions.mdc](mdc:.cursor/rules/500-llm-actions.mdc) for more detail
+
+See [README.md](mdc:README.md) for detailed information about the application.
+See [docs/data_model.md](mdc:docs/data_model.md) for data model documentation.
+
+You can refer to the `docs/features` directory for information on the implementation of specific features in the app.

@@ -1,0 +1,57 @@
+---
+description: This rule is helpful for any changes in this database schema for the application or any model related actions.
+globs:
+alwaysApply: false
+---
+# Data Model
+
+Last update: 2025-06-04
+
+## Guidance
+
+- When updating the schema in any way (migrations, etc), always update [data_model.md](mdc:docs/data_model.md) based on the latest version of [schema.rb](mdc:db/schema.rb).
+- When adding new models or removing models, always update this rule ([data-model.mdc](mdc:.cursor/rules/data-model.mdc)) with the models and tables added/removed
+
+## Core Tables
+
+### Vocabulary System
+- **vocabulary_notes**: Central table storing vocabulary items (words/phrases) with unified structure
+- **vocabulary_queue_items**: Queue of pending items to be processed with enrichment and review status
+- **vocabulary_queue_item_notes**: Join table connecting queue items to notes (many-to-many relationship)
+
+### Application Infrastructure
+- **application_settings**: Key-value store for application configuration settings
+- **sync_results**: Temporary storage for sync operation results with session tracking
+- **active_storage_*** tables**: Rails ActiveStorage for file attachments (audio, images)
+
+## Model Hierarchy
+
+### Vocabulary Models
+- **Vocabulary::QueueItem**: Items in the processing queue, used to generate vocabulary notes
+  - Tracks enrichment status (pending → processing → completed/failed)
+  - Tracks review status (not_ready → pending → accepted/rejected)
+  - Stores enrichment parameters and results
+- **Vocabulary::Note**: Unified vocabulary note model for all types (words and phrases)
+  - Single table for all vocabulary items
+  - Includes content, translations, examples, part of speech, gender, explanations
+  - Supports draft/permanent states and Anki synchronization
+  - Has audio attachments for content and example sentences
+- **Vocabulary::QueueItemNote**: Join model for queue-note relationships
+  - Enables many-to-many relationship between queue items and notes
+
+### System Models
+- **ApplicationSetting**: Key-value configuration storage
+  - Used for Anki deck selection and other app settings
+  - Provides convenience methods for getting/setting values
+- **SyncResult**: Temporary sync operation result storage
+  - Session-based storage for sync results
+  - Auto-cleanup of expired results
+
+## Key Relationships
+- Queue items can be linked to multiple notes (one queue item can generate multiple vocabulary notes)
+- Notes can exist independently of queue items (many-to-many relationship via join table)
+- Notes support ActiveStorage attachments for audio files and images
+- Application settings are stored as key-value pairs for flexible configuration
+
+See [docs/data_model.md](mdc:docs/data_model.md) for more detailed information.
+See [schema.rb](mdc:db/schema.rb) for the latest version of the model dump.
